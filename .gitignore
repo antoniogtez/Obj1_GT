@@ -1,21 +1,47 @@
-# Ignorar datos crudos y procesados para evitar subir archivos grandes
+# 🔹 Ignorar entorno virtual
+venv/
+venv_pytrends/
+
+# 🔹 Ignorar archivos de configuración y credenciales
+config.yml
+secrets.env
+*.env
+
+# 🔹 Ignorar datos crudos y procesados (evitar subir archivos grandes)
 data/raw/
 data/processed/
 
-# Ignorar configuraciones locales y credenciales
-config.yml
-*.Rproj.user
-*.Rhistory
-*.RData
-*.Ruserdata
+# 🔹 Ignorar archivos de caché y compilación de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Ignorar informes generados temporalmente
+# 🔹 Ignorar configuraciones de Visual Studio Code
+.vscode/
+*.code-workspace
+
+# 🔹 Ignorar caché y logs
+*.log
+logs/
+debug.log
+
+# 🔹 Ignorar dependencias de Jupyter Notebooks
+.ipynb_checkpoints/
+
+# 🔹 Ignorar archivos temporales del sistema operativo
+.DS_Store  # macOS
+Thumbs.db  # Windows
+
+# 🔹 Ignorar informes generados temporalmente
 *.html
 *.pdf
 *.docx
 
-# Ignorar caché de R
+# 🔹 Ignorar caché de R (si trabajas también con R)
 .Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+
+
