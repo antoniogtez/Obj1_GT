@@ -1,0 +1,21 @@
+# Ignorar datos crudos y procesados para evitar subir archivos grandes
+data/raw/
+data/processed/
+
+# Ignorar configuraciones locales y credenciales
+config.yml
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+
+# Ignorar informes generados temporalmente
+*.html
+*.pdf
+*.docx
+
+# Ignorar caché de R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
