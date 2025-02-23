@@ -44,4 +44,19 @@ Thumbs.db  # Windows
 .RData
 .Ruserdata
 
+# Ignorar archivos de logs y datos sensibles
+data/error_log.csv
+data/panel_trends_ES.csv
+data/proxies.txt
+data/proxy_direct.txt
+
+
+# Ignorar archivos de logs y datos innecesarios
+data/download_log.csv
+data/log_GTdata.txt
+error_log.csv
+old_data_test/
+scripts/script_cebrian.R
+scripts/test.py
+
 
