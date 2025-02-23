@@ -2,103 +2,141 @@ import os
 import random
 import time
 import pandas as pd
-from trendspy import Trends
 from datetime import datetime, timedelta
+from trendspy import Trends
 
-# 📌 Configuración de rutas
-proxy_file_path = "C:/Users/34645/Desktop/projects/Obj1_GT/data/proxies.txt"
-data_path = "C:/Users/34645/Desktop/projects/Obj1_GT/data/raw"
-log_file = "C:/Users/34645/Desktop/projects/Obj1_GT/data/download_log.csv"
+# 🔹 CONFIGURACIÓN GLOBAL
+PAIS = "ES"
+KEYWORDS = ["coche", "taxi", "bus", "bicicleta", "metro"]
+LOG_FILE = r"C:\Users\34645\Desktop\projects\Obj1_GT\data\error_log.csv"
+DATA_FOLDER = r"C:\Users\34645\Desktop\projects\Obj1_GT\data"
 
-# 📌 Asegurar que el directorio de salida existe
-os.makedirs(data_path, exist_ok=True)
+# 🔹 Verificar que la carpeta existe, si no, crearla
+if not os.path.exists(DATA_FOLDER):
+    os.makedirs(DATA_FOLDER)
 
-# 📌 Leer la lista de proxies desde el archivo
-with open(proxy_file_path, "r") as file:
-    proxies_raw = file.readlines()
+def get_file_path(filename):
+    return os.path.join(DATA_FOLDER, filename)
 
-# 📌 Función para convertir los proxies al formato correcto
-def convert_proxy_format(proxy_line):
-    parts = proxy_line.strip().split(":")
-    if len(parts) == 4:  # Formato: IP:PUERTO:USUARIO:CONTRASEÑA
-        return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-    return None  # Ignorar si no tiene el formato correcto
+START_DATE = "2020-01-01"
+END_DATE = "2022-12-31"
 
-# 📌 Convertir y filtrar proxies válidos
-proxy_list = list(filter(None, map(convert_proxy_format, proxies_raw)))
+PROXIES = [
+    "http://xfjbuflz-rotate:emztbj4smng7@p.webshare.io:80"
+]
+PROXIES.append(None)
 
-# 📌 Verificar que hay proxies válidos
-if not proxy_list:
-    raise ValueError("⚠️ No hay proxies válidos en el archivo.")
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+]
 
-# 📌 Función para seleccionar un proxy aleatorio
-def get_random_proxy(proxies):
-    return random.choice(proxies)
+def get_random_proxy():
+    return random.choice(PROXIES)
 
-# 📌 Función para obtener los rangos de fechas mensuales
-def generate_monthly_ranges(start_date, end_date):
-    date_ranges = []
-    current_date = datetime.strptime(start_date, "%Y-%m-%d")
+def get_random_user_agent():
+    return random.choice(USER_AGENTS)
 
-    while current_date < datetime.strptime(end_date, "%Y-%m-%d"):
-        next_month = current_date + timedelta(days=32)
-        next_month = next_month.replace(day=1)
-        date_ranges.append((current_date.strftime("%Y-%m-%d"), (next_month - timedelta(days=1)).strftime("%Y-%m-%d")))
-        current_date = next_month
+def get_wait_time(attempt):
+    return random.uniform(5, 15) * (2 ** attempt)
+
+def log_error(keyword, country, error_message):
+    log_df = pd.DataFrame([{
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "keyword": keyword,
+        "country": country,
+        "error_message": error_message
+    }])
     
-    return date_ranges
+    if os.path.exists(LOG_FILE):
+        log_df.to_csv(LOG_FILE, mode='a', header=False, index=False)
+    else:
+        log_df.to_csv(LOG_FILE, index=False)
 
-# 📌 Función para probar `Trendspy` con un proxy y guardar en CSV
-def download_trendspy_data(keyword, start_date="2023-01-01", end_date="2023-06-30"):
-    date_ranges = generate_monthly_ranges(start_date, end_date)
-    all_results = []
+def get_timeframes(start_date, end_date):
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    timeframes = []
+    while start_date < end_date:
+        next_date = start_date + timedelta(days=30)
+        if next_date > end_date:
+            next_date = end_date
+        timeframes.append(f"{start_date.strftime('%Y-%m-%d')} {next_date.strftime('%Y-%m-%d')}")
+        start_date = next_date
+    return timeframes
 
-    for start, end in date_ranges:
-        proxy = get_random_proxy(proxy_list)
-        print(f"🔄 Usando proxy: {proxy} para descargar '{keyword}' del {start} al {end}")
+def get_extraction_number(df, timeframe, keyword, country):
+    """ Devuelve el número de extracción para una combinación única de periodo, keyword y país """
+    if df.empty:
+        return 1
+    subset = df[(df["timeframe"] == timeframe) & (df["keyword"] == keyword) & (df["country"] == country)]
+    if subset.empty:
+        return 1
+    return subset["extraction_number"].max() + 1
 
-        # 📌 Inicializar Trendspy con el proxy seleccionado
-        tr = Trends(request_delay=4, proxy=proxy)
+def get_trends_and_save(keyword, country, start_date, end_date):
+    attempts = 0
+    tr = Trends(request_delay=5.0)  
 
+    timeframes = get_timeframes(start_date, end_date)  
+    filename = get_file_path(f"panel_trends_{country}.csv")
+
+    # 🔹 Cargar datos previos si el archivo existe
+    if os.path.exists(filename):
+        existing_df = pd.read_csv(filename)
+    else:
+        existing_df = pd.DataFrame()
+
+    while attempts < 5:
         try:
-            # 📌 Intentar descargar datos de Google Trends
-            df = tr.interest_over_time([keyword], timeframe=f"{start} {end}", geo="ES")
+            proxy = get_random_proxy()
+            tr.set_proxy(proxy)  
+            HEADERS = {
+                "User-Agent": get_random_user_agent(),
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.google.com/"
+            }
 
-            # 📌 Si la consulta fue exitosa, procesar y guardar los datos
-            if not df.empty:
-                df["Keyword"] = keyword  # Agregar la columna de palabra clave
-                df["Date"] = df.index.strftime("%Y-%m-%d")  # Convertir índice a fecha
+            for timeframe in timeframes:
+                wait_time = random.uniform(60, 300)
+                print(f"⌛ Esperando {wait_time:.2f} segundos antes de la siguiente solicitud a Google Trends...")
+                time.sleep(wait_time)  
 
-                all_results.append(df)
-                print(f"✅ Datos descargados correctamente para '{keyword}' del {start} al {end}.")
+                print(f"📊 Descargando datos para '{keyword}' en {country} - Período: {timeframe}")
+                df = tr.interest_over_time([keyword], geo=country, timeframe=timeframe, headers=HEADERS)
 
-                # 📌 Registrar la descarga en el log
-                with open(log_file, "a") as log:
-                    log.write(f"{datetime.now()}, {keyword}, {start}, {end}, {proxy}\n")
+                print("📥 Respuesta de Google Trends (primeras 5 filas):")
+                print(df.head() if df is not None else "❌ No se recibieron datos.")
 
-            else:
-                print(f"⚠️ No se encontraron datos para '{keyword}' en el rango {start} - {end}.")
+                if df is None or df.empty:
+                    print(f"⚠ No se encontraron datos para '{keyword}' en {timeframe}, continuando...")
+                    continue
+
+                df = df.reset_index().rename(columns={"time [UTC]": "date"})
+
+                df = df.melt(id_vars=["date"], var_name="keyword", value_name="interest")
+                df["country"] = country
+                df["timeframe"] = timeframe  # Guardar el periodo de extracción
+                df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # 🔹 Asignar número de extracción
+                df["extraction_number"] = get_extraction_number(existing_df, timeframe, keyword, country)
+
+                # 🔹 Guardar datos progresivamente en el CSV
+                existing_df = pd.concat([existing_df, df], ignore_index=True)
+                existing_df.to_csv(filename, index=False)
+                
+                print(f"✅ Datos guardados en '{filename}' - Extracción #{df['extraction_number'].max()}")
+
+            return df  
 
         except Exception as e:
-            print(f"❌ Error al descargar datos con el proxy {proxy}: {e}")
+            print(f"❌ Error en la extracción: {e}")
+            log_error(keyword, country, str(e))
+            attempts += 1
+            time.sleep(get_wait_time(attempts))
 
-        # 📌 Esperar unos segundos antes de la siguiente descarga
-        #time.sleep(random.randint(600, 180))
-
-    # 📌 Guardar resultados en CSV si hay datos
-    if all_results:
-        final_df = pd.concat(all_results, ignore_index=True)
-        output_file = os.path.join(data_path, f"{keyword}_diario.csv")
-        final_df.to_csv(output_file, index=False)
-        print(f"📁 Datos guardados en '{output_file}'.")
-    else:
-        print(f"⚠️ No se guardaron datos para '{keyword}'.")
-
-# 📌 Lista de palabras clave a buscar
-keywords = ["coche", "autobús", "bicicleta","metro", "tranvía"]
-
-# 📌 Ejecutar la prueba con diferentes keywords
-for keyword in keywords:
-    download_trendspy_data(keyword)
-
-
+for keyword in KEYWORDS:
+    get_trends_and_save(keyword, PAIS, START_DATE, END_DATE)
