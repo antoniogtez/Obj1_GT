@@ -59,4 +59,9 @@ old_data_test/
 scripts/script_cebrian.R
 scripts/test.py
 
+# Ignorar estos scripts
+scripts/donwnload_trends.R
+scripts/keyword_generation.R
+scripts/scraper.py
+
 
