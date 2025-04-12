@@ -1,0 +1,25 @@
+[33me3ab0cb[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m Update paper draft with new methods and panel model section
+[33m3fa0fae[m Add proxy-enabled GT downloader script
+[33md254e91[m Updated download script and added introduction to the paper
+[33md6bee84[m Inicio del documento del paper y registro de cambios
+[33m91f5bc6[m Elimino archivos antiguos y comienzo seguimiento sobre Scripts/download.py; resto de archivos ignorados por ahora
+[33m186b1c6[m[33m ([m[1;31morigin/main[m[33m)[m Uploading data processing notebook with structured extraction logic for themes and keywords. Implemented independent extraction counters for each country/region, ensured sequential numbering, and improved visualization of extractions over time.
+[33m1c5dbed[m Uploading data processing notebook with structured extraction logic for themes and keywords. Implemented independent extraction counters for each country/region, ensured sequential numbering, and improved visualization of extractions over time.
+[33m1059b0e[m Actualización de README y notebook de procesamiento de datos
+[33m52c6f6c[m Actualización del data processing y script para descargar multiple kw normaliizado
+[33m4f18900[m Añadir notebooks de procesamiento de datos
+[33mc0aae77[m Actualizando .gitignore para ignorar scripts específicos
+[33mc27ea43[m Eliminando scripts innecesarios del repositorio
+[33mb7fb86d[m Actualizando .gitignore para ignorar archivos no deseados
+[33mc967b4a[m Actualización del script trendspy_scrape.py, ya descarga con proxies rotativos
+[33m16a6b29[m Restaurado trendspy_scrape.py a versión original
+[33m631cc0f[m Revertir al script original
+[33mf66236a[m Suubimos  script de descarga de datos diarios con proxies, primer archivo. Conseguimos descargar datos diarios para 6 meses
+[33m7754891[m Add scraper from oxylabs we test it in the next few days
+[33me4c287b[m Requiremnets for Google Trends Scraping
+[33m5bc89e5[m Requiremnets for Google Trends Scraping
+[33m64f305c[m Actualizar .gitignore y limpiar archivos innecesarios
+[33mdd6610c[m Updated keywords generation script with improved structure and English comments
+[33m7c7ed6e[m Added RStudio project file
+[33mb482cac[m Added README.md with project description
+[33m22a3c3b[m Added .gitignore file to exclude unnecessary files

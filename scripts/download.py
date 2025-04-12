@@ -13,48 +13,34 @@ CONTROL_TERM = "wikipedia"
 START_DATE = "2018-01-01"
 END_DATE = "2025-01-01"
 MAX_RETRIES = 5
-SAMPLES = 3  # Puedes subir esto cuando confirmes estabilidad
+SAMPLES = 100
 
-# 🌍 Palabras clave por país
+# 🌍 Keywords por país
 COUNTRIES_KEYWORDS = {
-     "DE": [
-        "auto", "taxi", "fahrrad", "bus",
-        "homeoffice", "supermarkt in der nähe", "restaurant in der nähe", "online einkaufen",
-        "elektroauto", "elektroauto aufladen", "benzinverbrauch", "hybridauto"
-    ],
-    "IT": [
-        "auto", "taxi", "bicicletta", "autobus",
-        "telelavoro", "supermercato vicino", "ristorante vicino", "acquisti online",
-        "auto elettrica", "colonnina di ricarica", "consumo benzina", "auto ibrida"
-    ],
-    "PT": [
-        "carro", "táxi", "bicicleta", "autocarro",
-        "trabalho remoto", "supermercado perto", "restaurante perto", "compras online",
-        "carro elétrico", "posto de carregamento", "consumo gasolina", "carro híbrido"
-    ],
-    "ES": [
-        "coche", "taxi", "bicicleta", "autobús",
-        "teletrabajo", "supermercado cerca", "restaurante cerca", "compra online",
-        "coche eléctrico", "electrolinera", "consumo gasolina", "coche híbrido"
-    ],
-    "FR": [
-        "voiture", "taxi", "vélo", "autobus",
-        "télétravail", "supermarché proche", "restaurant proche", "achat en ligne",
-        "voiture électrique", "borne de recharge", "consommation essence", "voiture hybride"
-    ],
-    "US": [
-        "car", "taxi", "bike", "bus",
-        "work from home", "grocery store near me", "restaurant near me", "online shopping",
-        "electric car", "charging station", "gas consumption", "hybrid car"
-    ],
-    "GB": [
-        "car", "taxi", "bicycle", "bus",
-        "work from home", "supermarket near me", "restaurant near me", "online shopping",
-        "electric car", "charging point", "petrol consumption", "hybrid car"
-    ]}
+#    "DE": ["auto", "taxi", "fahrrad", "bus", "homeoffice", "supermarkt in der nähe",
+#           "restaurant in der nähe", "online einkaufen", "elektroauto",
+#           "elektroauto aufladen", "benzinverbrauch", "hybridauto"],
+#    "IT": ["ristorante vicino", "acquisti online", "auto elettrica", "colonnina di ricarica",
+#           "consumo benzina", "auto ibrida"],
+#    "PT": ["carro", "táxi", "bicicleta", "autocarro", "trabalho remoto",
+#           "supermercado perto", "restaurante perto", "compras online",
+#           "carro elétrico", "posto de carregamento", "consumo gasolina", "carro híbrido"],
+#    "ES": ["coche", "taxi", "bicicleta", "autobús", "teletrabajo", "supermercado cerca",
+#           "restaurante cerca", "compra online", "coche eléctrico", "electrolinera",
+#           "consumo gasolina", "coche híbrido"],
+#    "FR": ["voiture", "taxi", "vélo", "autobus", "télétravail", "supermarché proche",
+#           "restaurant proche", "achat en ligne", "voiture électrique", "borne de recharge",
+#           "consommation essence", "voiture hybride"],
+    "US": ["car", "taxi", "bike", "bus", "work from home", "grocery store near me",
+           "restaurant near me", "online shopping", "electric car", "charging station",
+           "gas consumption", "hybrid car"],
+    "GB": ["car", "taxi", "bicycle", "bus", "work from home", "supermarket near me",
+           "restaurant near me", "online shopping", "electric car", "charging point",
+           "petrol consumption", "hybrid car"]
+}
 
-# 🧾 LOG DE SESIÓN
 SESSION_LOG = []
+STOP_FLAG = False
 
 def log_event(country, keywords, label, status, message):
     log_entry = {
@@ -67,12 +53,9 @@ def log_event(country, keywords, label, status, message):
     }
     SESSION_LOG.append(log_entry)
 
-def save_log():
-    df_log = pd.DataFrame(SESSION_LOG)
-    df_log.to_csv(LOG_FILE, index=False)
-    print(f"📄 Log guardado en: {LOG_FILE}")
-
-STOP_FLAG = False  # Bandera global para detener ejecución ante 429
+    df_log = pd.DataFrame([log_entry])
+    file_exists = os.path.exists(LOG_FILE)
+    df_log.to_csv(LOG_FILE, mode='a', index=False, header=not file_exists)
 
 def save_trend(tr, keywords, country, folder, label="x", max_retries=MAX_RETRIES):
     global STOP_FLAG
@@ -91,12 +74,8 @@ def save_trend(tr, keywords, country, folder, label="x", max_retries=MAX_RETRIES
     while attempt < max_retries:
         try:
             muestra_n = last_sample + 1
-            print(f"🌍 País: {country} | Palabra: {'+'.join(keywords)} | Muestra: {muestra_n} | Intento: {attempt+1}")
-            df = tr.interest_over_time(
-                keywords,
-                geo=country,
-                timeframe=f"{START_DATE} {END_DATE}"
-            )
+            print(f"🌍 {country} | {keywords} | Muestra: {muestra_n}")
+            df = tr.interest_over_time(keywords, geo=country, timeframe=f"{START_DATE} {END_DATE}")
             if df is None or df.empty:
                 raise ValueError("Empty or None result")
 
@@ -109,69 +88,66 @@ def save_trend(tr, keywords, country, folder, label="x", max_retries=MAX_RETRIES
             full_df = pd.concat([existing_df, df], ignore_index=True)
             full_df.to_csv(filepath, index=False)
 
-            print(f"✅ Datos añadidos a: {filepath} (muestra_n = {muestra_n})")
             log_event(country, keywords, label, "success", f"Appended to {filepath}")
             return
 
         except Exception as e:
-            error_msg = str(e)
-            print(f"❌ Error al descargar '{keywords}' en {country}: {error_msg}")
-            log_event(country, keywords, label, "error", error_msg)
-
-            if "429" in error_msg:
-                print("🛑 Error 429 detectado. Deteniendo ejecución inmediatamente.")
+            msg = str(e)
+            print(f"❌ Error: {keywords} ({country}) -> {msg}")
+            log_event(country, keywords, label, "error", msg)
+            if "429" in msg:
+                print("🛑 Error 429. Deteniendo ejecución.")
                 STOP_FLAG = True
-                return  # sin más intentos
+                return
             else:
-                wait_time = random.uniform(10, 25)
-                print(f"⏳ Esperando {wait_time:.2f} segundos antes de reintentar...")
-                time.sleep(wait_time)
+                time.sleep(random.uniform(10, 25))
                 attempt += 1
 
-def get_keywords_with_fewest_samples(country, keywords, folder):
-    sample_counts = []
-    for kw in keywords:
-        filename = f"x_{country}_{kw.replace(' ', '_')}.csv"
-        filepath = os.path.join(folder, filename)
-        if os.path.exists(filepath):
-            try:
-                df = pd.read_csv(filepath)
-                count = df["muestra_n"].nunique()
-            except Exception:
-                count = 0
-        else:
-            count = 0
-        sample_counts.append((kw, count))
-    
-    sorted_keywords = sorted(sample_counts, key=lambda x: x[1])
-    return [kw for kw, _ in sorted_keywords]
+def build_global_keyword_list(folder):
+    all_keywords = []
+    for country, terms in COUNTRIES_KEYWORDS.items():
+        for kw in terms:
+            filename = f"x_{country}_{kw.replace(' ', '_')}.csv"
+            filepath = os.path.join(folder, filename)
+            if os.path.exists(filepath):
+                try:
+                    df = pd.read_csv(filepath)
+                    num = df["muestra_n"].nunique()
+                except Exception:
+                    num = 0
+            else:
+                num = 0
+            all_keywords.append((country, kw, num))
+    sorted_all = sorted(all_keywords, key=lambda x: x[2])
+    return sorted_all
 
 if __name__ == "__main__":
-    tr = Trends(request_delay=6.0)
+    tr = Trends(request_delay=12.0)
+    folder_path = os.path.join(BASE_PATH, "x")
 
-    for sample in range(1, SAMPLES + 1):
-        for country, terms in COUNTRIES_KEYWORDS.items():
-            if STOP_FLAG:
-                break
+    while not STOP_FLAG:
+        sorted_global = build_global_keyword_list(folder_path)
+        keyword_entry = next((entry for entry in sorted_global if entry[2] < SAMPLES), None)
 
-            folder_path = os.path.join(BASE_PATH, "x")
-            sorted_keywords = get_keywords_with_fewest_samples(country, terms, folder_path)
+        if not keyword_entry:
+            print("🎉 ¡Todas las keywords tienen suficientes muestras!")
+            break
 
-            for keyword in sorted_keywords:
-                if STOP_FLAG:
-                    break
+        country, keyword, muestras = keyword_entry
+        print(f"➡️ Próxima descarga: {keyword} ({country}) con {muestras} muestras")
 
-                save_trend(tr, [keyword], country, folder_path, label="x")
-                if STOP_FLAG: break
-                time.sleep(random.uniform(60, 300))
+        # 1. keyword sola
+        save_trend(tr, [keyword], country, folder_path, label="x")
+        if STOP_FLAG: break
+        time.sleep(random.uniform(120, 300))
 
-                save_trend(tr, [CONTROL_TERM], country, folder_path, label="x")
-                if STOP_FLAG: break
-                time.sleep(random.uniform(60, 300))
+        # 2. control
+        save_trend(tr, [CONTROL_TERM], country, folder_path, label="x")
+        if STOP_FLAG: break
+        time.sleep(random.uniform(120, 300))
 
-                combined_term = f"{keyword} + {CONTROL_TERM}"
-                save_trend(tr, [combined_term], country, folder_path, label="x")
-                if STOP_FLAG: break
-                time.sleep(random.uniform(60, 300))
-
-    save_log()
+        # 3. combinada
+        combined = f"{keyword} + {CONTROL_TERM}"
+        save_trend(tr, [combined], country, folder_path, label="x")
+        if STOP_FLAG: break
+        time.sleep(random.uniform(120, 300))

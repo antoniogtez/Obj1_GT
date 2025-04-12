@@ -36,7 +36,7 @@ Thumbs.db  # Windows
 # 🔹 Ignorar informes generados temporalmente
 *.html
 *.pdf
-*.docx
+#*.docx
 
 # 🔹 Ignorar caché de R (si trabajas también con R)
 .Rproj.user/
@@ -65,3 +65,21 @@ scripts/keyword_generation.R
 scripts/scraper.py
 
 
+# Ignorar carpeta Data completa
+Data/
+
+# Ignorar todos los scripts por defecto...
+Scripts/*.py
+
+# ...excepto download.py
+!Scripts/download.py
+
+# Ignorar notebooks
+*.ipynb
+
+# Ignorar imágenes y gráficos
+*.png
+
+# Ignorar archivos temporales
+__pycache__/
+*.pyc

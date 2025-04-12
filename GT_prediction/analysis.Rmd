@@ -1,0 +1,358 @@
+---
+title: "Test MidasML"
+output: html_notebook
+---
+
+
+```{r}
+# Load the necessary package
+rm(list = ls())
+library(midasml)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(janitor)
+library(lubridate)
+library(readr)
+library(ggplot2)
+library("tseries")
+library(tidyverse)
+library("midasr")
+
+
+```
+
+🔹 Paso 1: Transformar datos de Google Trends diarios para hacerlos múltiplos exactos de los datos mensuales
+📌 Problema: Tenemos 365 valores diarios de Google Trends, pero no es múltiplo exacto de 12 meses.
+✅ Solución: Podemos truncar a 360 días (12 meses de 30 días exactos) o agrupar por semanas para obtener una frecuencia más manejable.
+
+
+```{r}
+# Definir la ruta del archivo
+ruta_excel <- "C:/Users/34645/Desktop/projects/GoogleTrends/Data/test_data/madrid.xlsx"
+
+# Leer el archivo Excel
+madrid_df <- read_excel(ruta_excel)
+
+# Ver los nombres de las columnas y estructura
+glimpse(madrid_df)
+
+# Asegurar que la columna 'date' sea de tipo fecha
+madrid_df <- madrid_df %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d"))  # Ajustar el formato según cómo venga en Excel
+
+# Ordenar los datos por fecha
+madrid_df <- madrid_df %>%
+  arrange(date)
+
+# Ver los primeros valores después de ordenar
+print(head(madrid_df))
+```
+
+```{r}
+
+# Transformar los datos a formato largo para graficar
+madrid_long <- madrid_df %>%
+  pivot_longer(cols = -date, names_to = "transporte", values_to = "indice_GT")
+
+# Crear gráficos para cada serie de transporte
+ggplot(madrid_long, aes(x = date, y = indice_GT)) +
+  geom_line(size = 1, aes(color = transporte)) +  # Agrega líneas por cada tipo de transporte
+  facet_wrap(~transporte, scales = "free_y") +  # Crear gráficos separados por cada transporte
+  labs(
+    title = "Tendencia de búsqueda en Google Trends - Madrid",
+    x = "Fecha",
+    y = "Índice de Búsqueda"
+  ) +
+  theme_minimal() +  # Estilo limpio
+  theme(legend.position = "none")  # Eliminar la leyenda, ya que cada gráfico es independiente
+
+```
+
+
+```{r}
+# Leer el archivo Excel
+bus_df <- read_excel("C:/Users/34645/Desktop/projects/GoogleTrends/Data/Raw/INE/bus_2023_ccaa.xlsx", col_names = TRUE)
+
+# Renombrar la primera columna como 'region'
+names(bus_df)[1] <- "region"
+
+# Convertir nombres de columnas de Excel en fechas reales
+column_names <- names(bus_df)[-1]
+serials_as_dates <- as.Date(as.numeric(column_names), origin = "1899-12-30")
+names(bus_df)[-1] <- format(serials_as_dates, "%Y-%m-%d")
+
+# Transformar a formato largo (TODAS las CCAA)
+bus_long <- bus_df %>%
+  pivot_longer(-region, names_to = "date", values_to = "viajes") %>%
+  mutate(
+    date = as.Date(date),
+    viajes = as.numeric(viajes)
+  ) %>%
+  drop_na()
+
+# Crear otro dataframe SOLO con Madrid
+bus_madrid <- bus_long %>%
+  filter(region == "MD")
+
+# Verificar estructura de ambos dataframes
+glimpse(bus_long)   # Datos de todas las CCAA
+glimpse(bus_madrid) # Solo Madrid
+
+# Mostrar las primeras filas
+head(bus_long)
+head(bus_madrid)
+
+```
+
+```{r}
+# Ordenar por fecha ascendente
+bus_madrid_rate <- bus_madrid_rate %>%
+  arrange(date)
+
+# Recalcular la tendencia después de ordenar
+bus_madrid_rate <- bus_madrid_rate %>%
+  mutate(trend_adj = 1:nrow(bus_madrid_rate))
+
+# Verificar la estructura después del ordenamiento
+glimpse(bus_madrid_rate)
+```
+
+
+
+
+
+
+
+```{r}
+# Ver cantidad de observaciones en cada dataset
+cat("Observaciones de alta frecuencia:", length(madrid_df$bus), "\n")
+cat("Observaciones de baja frecuencia:", length(bus_madrid_rate$trend_adj), "\n")
+
+# Verificar si la cantidad de días es múltiplo exacto del número de meses
+#dias_por_mes <- round(length(madrid_df$bus) / length(bus_madrid_rate$trend_adj))
+dias_esperados <- length(bus_madrid_rate$trend_adj) * 30
+
+cat("Días esperados:", dias_esperados, "\n")
+cat("Días actuales:", length(madrid_df$bus), "\n")
+cat("Múltiplo exacto?:", length(madrid_df$bus) %% length(bus_madrid_rate$trend_adj) == 0, "\n")
+
+# Recortar la serie de alta frecuencia si tiene más días de los necesarios
+if (length(madrid_df$bus) > dias_esperados) {
+  madrid_df <- madrid_df[1:dias_esperados, ]
+  cat("Nueva cantidad de días:", length(madrid_df$bus), "\n")
+}
+```
+
+
+```{r}
+# Número de rezagos deseados (ejemplo: 6 meses)
+k <- 6  
+# Frecuencia m (asumiendo aproximadamente 30 días por mes)
+m <- 30  
+
+# Aplicamos fmls() a la variable de alta frecuencia (bus en Google Trends)
+bus_midas <- fmls(madrid_df$bus, k = k, m = m)
+tram_midas <- fmls(madrid_df$tram, k = k, m = m)
+subway_midas <- fmls(madrid_df$subway, k = k, m = m)
+car_midas <- fmls(madrid_df$car, k = k, m = m)
+taxi_midas <- fmls(madrid_df$taxi, k = k, m = m)
+
+
+
+# Verificar la estructura de los rezagos generados
+print(bus_midas[1:5, ])
+
+```
+
+
+
+
+```{r}
+# Ajustar el modelo de regresión MIDAS con lm()
+eq_u <- lm(bus_madrid_rate$rate_y ~ bus_madrid_rate$trend_adj + bus_midas + tram_midas + subway_midas + car_midas + taxi_midas)
+
+# Ver el resumen del modelo
+summary(eq_u)
+```
+
+
+
+
+
+```{r}
+poblacion_df <- tibble(
+  region = c("AN", "AR", "AS", "CN", "CL", "CM", "CAT", "VC", "EX", "GA", "MD", "MC", "PV"),
+  poblacion = c(8500000, 1300000, 1000000, 2200000, 2400000, 2000000, 7800000, 5000000,
+                1060000, 2700000, 6800000, 1500000, 2200000)  # aprox. en habitantes
+)
+```
+
+
+```{r}
+bus_scaled <- bus_long %>%
+  left_join(poblacion_df, by = "region") %>%
+  mutate(
+    viajes_por_mil = (viajes / poblacion) * 1000  # o por cada 100.000 si querés
+  )
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(bus_scaled, aes(x = date, y = viajes_por_mil, color = region)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Viajes en autobús por CCAA (ajustado por población)",
+    subtitle = "Escalado como viajes mensuales por cada 1.000 habitantes",
+    x = "Fecha", y = "Viajes por 1.000 hab.",
+    color = "CCAA"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+ggplot(bus_scaled, aes(x = date, y = viajes_por_mil)) +
+  geom_line(color = "steelblue", linewidth = 0.8) +
+  facet_wrap(~ region, scales = "free_y") +
+  labs(title = "Uso del autobús por CCAA (viajes/1.000 hab.)",
+       x = "Fecha", y = "Viajes por 1.000 hab.") +
+  theme_minimal()
+
+```
+
+
+```{r}
+library(zoo)
+
+bus_smooth <- bus_scaled %>%
+  group_by(region) %>%
+  arrange(date) %>%
+  mutate(viajes_rolling = rollmean(viajes_por_mil, 3, fill = NA))
+
+ggplot(bus_smooth, aes(x = date, y = viajes_rolling, color = region)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Tendencia suavizada del uso de autobús por CCAA",
+       y = "Viajes por 1.000 hab. (promedio 3 meses)",
+       x = "Fecha") +
+  theme_minimal()
+```
+
+
+
+Primer cargamos el panle con las series diarias de GT para cada CCAA. 
+
+```{r}
+# Cargar el panel desde la ruta absoluta
+gt_panel <- read_csv("C:/Users/34645/Desktop/projects/GoogleTrends/Data/Clean/panel_final_R.csv")
+
+# Verificar estructura
+glimpse(gt_panel)
+```
+
+
+```{r}
+## Create high frequency vars
+subway <- gt_panel %>% filter(region == "MD") %>% select(date, subway)
+bus    <- gt_panel %>% filter(region == "MD") %>% select(date, bus)
+cars   <- gt_panel %>% filter(region == "MD") %>% select(date, car)
+tram   <- gt_panel %>% filter(region == "MD") %>% select(date, tram)
+taxi   <- gt_panel %>% filter(region == "MD") %>% select(date, taxi)
+
+```
+
+
+```{r}
+# Variables de entrada
+data.refdate <- gt_panel %>% filter(region == "MD") %>% select(date)     # fechas trimestrales
+data.x       <- subway$subway     # valores mensuales
+data.xdate   <- subway$date      # fechas mensuales del predictor
+est.start    <- as.Date("2023-01-01")
+est.end      <- as.Date("2023-12-01")
+
+```
+
+
+```{r}
+midas_input <- mixed_freq_data_single(
+  data.refdate = data.refdate,
+  data.x     = data.x,
+  data.xdate = data.xdate,
+  x.lag      = 28,
+  horizon    = 1,
+  est.start  = est.start,
+  est.end    = est.end,
+  disp.flag  = TRUE
+)
+```
+
+
+```{r}
+# Leer el archivo
+bus_df <- read_excel("C:/Users/34645/Desktop/projects/GoogleTrends/Data/Raw/INE/bus_2023_ccaa.xlsx", , col_names = TRUE)
+
+# Renombrar la primera columna como 'region'
+names(bus_df)[1] <- "region"
+
+# Verificamos si los nombres de columnas son numéricos (serial Excel)
+column_names <- names(bus_df)[-1]
+serials_as_dates <- as.Date(as.numeric(column_names), origin = "1899-12-30")
+
+# Reemplazar nombres de columnas con fechas reales
+names(bus_df)[-1] <- format(serials_as_dates, "%Y-%m-%d")
+
+# Transformar a formato largo
+bus_long <- bus_df %>%
+  pivot_longer(-region, names_to = "date", values_to = "viajes") %>%
+  mutate(
+    date = as.Date(date),
+    viajes = as.numeric(viajes)
+  ) %>%
+  drop_na()
+
+# Verificar la estructura
+glimpse(bus_df)
+```
+
+```{r}
+# 1. Extraer Y (movilidad mensual en bus para Madrid)
+y_madrid <- bus_long %>%
+  filter(region == "MD") %>%
+  arrange(date)
+```
+
+```{r}
+# 2. Extraer X (por ejemplo, búsquedas "subway" en Madrid)
+x_madrid <- gt_panel %>%
+  filter(region == "MD") %>%
+  arrange(date)
+
+# 3. Crear estructura MIDAS completa con mixed_freq_data()
+midas_input_full <- mixed_freq_data(
+  data.y     = y_madrid$viajes,
+  data.ydate = y_madrid$date,
+  data.x     = x_madrid$subway,
+  data.xdate = x_madrid$date,
+  x.lag      = 28,  # 28 rezagos diarios
+  y.lag      = 2,   # 2 rezagos mensuales del target
+  horizon    = 1,
+  est.start  = as.Date("2023-01-01"),
+  est.end    = as.Date("2023-12-01"),
+  disp.flag  = TRUE
+)
+```
+
+```{r}
+midas_model <- midas.ardl(
+  y = midas_input_full$est.y,
+  x = midas_input_full$est.x,
+  z = midas_input_full$y.lag,
+  poly_choice = "legendre",
+  legendre_degree = 3,
+  loss_choice = "mse"
+)
+
+summary(midas_model)
+```
+
