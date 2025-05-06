@@ -74,8 +74,6 @@ Scripts/*.py
 # ...excepto download.py
 !Scripts/download.py
 
-# Ignorar notebooks
-*.ipynb
 
 # Ignorar imágenes y gráficos
 *.png

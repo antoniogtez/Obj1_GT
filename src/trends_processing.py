@@ -1,6 +1,4 @@
 # src/trends_processing.py
-
-
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
@@ -77,9 +75,13 @@ def imputar_muestra(df_x, df_comb, df_ctrl, sample_n):
     dcomb = clean_sample(df_comb, sample_n)
     dctrl = clean_sample(df_ctrl, sample_n)
 
+    # Solo rellenamos NaNs con 0 en la keyword (x), no en control ni combinada
+    dx["value"] = dx["value"].fillna(0)
+
     df = dx[["date", "value"]].rename(columns={"value": "x"}).copy()
     df = df.merge(dcomb[["date", "value"]].rename(columns={"value": "combined"}), on="date", how="inner")
     df = df.merge(dctrl[["date", "value"]].rename(columns={"value": "control"}), on="date", how="inner")
+
 
     if len(df) < 3:
         return None  # Muy pocos puntos para modelar
@@ -119,21 +121,25 @@ def construir_serie_normalizada_con_imputaciones(base_folder, country, keyword, 
     df_all["date"] = pd.to_datetime(df_all["date"], errors="coerce")
 
     df_wide = df_all.pivot_table(index="date", columns="sample_n", values="imputed", aggfunc="mean")
-    df_wide["mean_imputed"] = df_wide.mean(axis=1)
+    df_wide["mean_imputed"] = df_wide.mean(axis=1   )
 
-    serie = df_wide["mean_imputed"]
+    # 🔧 NUEVO: asegurar fechas completas
+    fechas_completas = pd.date_range("2018-01-01", "2025-01-01", freq="MS")
+    serie = df_wide["mean_imputed"].reindex(fechas_completas).fillna(0)
+
     z = (serie - serie.mean()) / serie.std()
 
     keyword_common = COMMON_KEYWORDS.get(keyword.lower(), keyword.lower())
 
     df_z = pd.DataFrame({
-        "date": serie.index,
-        "keyword": keyword,
-        "keyword_common": keyword_common,
-        "country": country,
-        "imputed": serie.values,
-        "zscore": z.values
+    "date": serie.index,
+    "keyword": keyword,
+    "keyword_common": keyword_common,
+    "country": country,
+    "imputed": serie.values,
+    "zscore": z.values
     }).reset_index(drop=True)
+
 
     return df_z
 
@@ -165,3 +171,21 @@ def construir_panel_global(base_folder, country_keywords, control_term="wikipedi
         return pd.concat(panel, ignore_index=True)
     else:
         return None
+def load_single_keyword_sample(base_folder, country, keyword):
+    """
+    Carga el archivo CSV original para una keyword sola.
+    """
+    filename = f"x_{country}_{keyword.replace(' ', '_')}.csv"
+    filepath = os.path.join(base_folder, filename)
+    if not os.path.exists(filepath):
+        print(f"❌ Archivo no encontrado: {filepath}")
+        return None
+    df = pd.read_csv(filepath, encoding="utf-8")
+    if "time [UTC]" in df.columns:
+        df = df.rename(columns={"time [UTC]": "date"})
+    for c in df.columns:
+        if c not in ["date", "keywords", "keyword", "country", "muestra_n", "timestamp", "value"]:
+            df = df.rename(columns={c: "value"})
+            break
+    df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
+    return df
